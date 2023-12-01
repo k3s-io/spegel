@@ -140,7 +140,7 @@ func registryCommand(ctx context.Context, args *RegistryCmd) (err error) {
 		return err
 	}
 	bootstrapper := routing.NewKubernetesBootstrapper(cs, args.LeaderElectionNamespace, args.LeaderElectionName)
-	router, err := routing.NewP2PRouter(ctx, args.RouterAddr, bootstrapper, registryPort)
+	router, err := routing.NewP2PRouter(ctx, args.RouterAddr, bootstrapper, registryPort, "http")
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func registryCommand(ctx context.Context, args *RegistryCmd) (err error) {
 		return nil
 	})
 
-	reg := registry.NewRegistry(ociClient, router, args.LocalAddr, args.MirrorResolveRetries, args.MirrorResolveTimeout, args.ResolveLatestTag)
+	reg := registry.NewRegistry(ociClient, router, args.LocalAddr, args.MirrorResolveRetries, args.MirrorResolveTimeout, args.ResolveLatestTag, nil)
 	regSrv := reg.Server(args.RegistryAddr, log)
 	g.Go(func() error {
 		if err := regSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

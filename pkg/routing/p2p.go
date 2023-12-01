@@ -21,14 +21,15 @@ import (
 )
 
 type P2PRouter struct {
-	b            Bootstrapper
-	host         host.Host
-	kdht         *dht.IpfsDHT
-	rd           *routing.RoutingDiscovery
-	registryPort string
+	b              Bootstrapper
+	host           host.Host
+	kdht           *dht.IpfsDHT
+	rd             *routing.RoutingDiscovery
+	registryPort   string
+	registryScheme string
 }
 
-func NewP2PRouter(ctx context.Context, addr string, b Bootstrapper, registryPort string) (Router, error) {
+func NewP2PRouter(ctx context.Context, addr string, b Bootstrapper, registryPort, registryScheme string) (Router, error) {
 	log := logr.FromContextOrDiscard(ctx).WithName("p2p")
 
 	multiAddrs, err := listenMultiaddrs(addr)
@@ -104,11 +105,12 @@ func NewP2PRouter(ctx context.Context, addr string, b Bootstrapper, registryPort
 	rd := routing.NewRoutingDiscovery(kdht)
 
 	return &P2PRouter{
-		b:            b,
-		host:         host,
-		kdht:         kdht,
-		rd:           rd,
-		registryPort: registryPort,
+		b:              b,
+		host:           host,
+		kdht:           kdht,
+		rd:             rd,
+		registryPort:   registryPort,
+		registryScheme: registryScheme,
 	}, nil
 }
 
@@ -136,8 +138,14 @@ func (r *P2PRouter) Resolve(ctx context.Context, key string, allowSelf bool, cou
 	if err != nil {
 		return nil, err
 	}
+	// If using unlimited retries (count=0), ensure that the peer address channel
+	// does not become blocking by using a reasonable non-zero buffer size.
+	peerBufferSize := count
+	if peerBufferSize == 0 {
+		peerBufferSize = 20
+	}
 	addrCh := r.rd.FindProvidersAsync(ctx, c, count)
-	peerCh := make(chan string, count)
+	peerCh := make(chan string, peerBufferSize)
 	go func() {
 		for info := range addrCh {
 			if !allowSelf && info.ID == r.host.ID() {
@@ -157,9 +165,14 @@ func (r *P2PRouter) Resolve(ctx context.Context, key string, allowSelf bool, cou
 				continue
 			}
 			// Combine peer with registry port to create mirror endpoint.
-			registryEnpoint := net.JoinHostPort(host, r.registryPort)
-			// TODO: Fix support for https scheme
-			peerCh <- fmt.Sprintf("http://%s", registryEnpoint)
+			peer := fmt.Sprintf("%s://%s", r.registryScheme, net.JoinHostPort(host, r.registryPort))
+
+			// don't block if the client has disconnected before reading all values from the channel
+			select {
+			case peerCh <- peer:
+			default:
+				log.V(10).Info("mirror endpoint dropped: peer channel is full")
+			}
 		}
 		close(peerCh)
 	}()

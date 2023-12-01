@@ -42,9 +42,10 @@ type Registry struct {
 	resolveRetries   int
 	resolveTimeout   time.Duration
 	resolveLatestTag bool
+	transport        http.RoundTripper
 }
 
-func NewRegistry(ociClient oci.Client, router routing.Router, localAddr string, resolveRetries int, resolveTimeout time.Duration, resolveLatestTag bool) *Registry {
+func NewRegistry(ociClient oci.Client, router routing.Router, localAddr string, resolveRetries int, resolveTimeout time.Duration, resolveLatestTag bool, transport http.RoundTripper) *Registry {
 	return &Registry{
 		ociClient:        ociClient,
 		router:           router,
@@ -52,6 +53,7 @@ func NewRegistry(ociClient oci.Client, router routing.Router, localAddr string, 
 		resolveTimeout:   resolveTimeout,
 		resolveLatestTag: resolveLatestTag,
 		localAddr:        localAddr,
+		transport:        transport,
 	}
 }
 
@@ -163,7 +165,7 @@ func (r *Registry) registryHandler(c *gin.Context) {
 func (r *Registry) handleMirror(c *gin.Context, key string) {
 	c.Set("handler", "mirror")
 
-	log := pkggin.FromContextOrDiscard(c)
+	log := pkggin.FromContextOrDiscard(c).WithValues("key", key, "path", c.Request.URL.Path, "ip", c.RemoteIP())
 
 	// Resolve mirror with the requested key
 	resolveCtx, cancel := context.WithTimeout(c, r.resolveTimeout)
@@ -171,7 +173,7 @@ func (r *Registry) handleMirror(c *gin.Context, key string) {
 	resolveCtx = logr.NewContext(resolveCtx, log)
 	isExternal := r.isExternalRequest(c)
 	if isExternal {
-		log.Info("handling mirror request from external node", "path", c.Request.URL.Path, "ip", c.RemoteIP())
+		log.Info("handling mirror request from external node")
 	}
 	mirrorCh, err := r.router.Resolve(resolveCtx, key, isExternal, r.resolveRetries)
 	if err != nil {
@@ -207,7 +209,10 @@ func (r *Registry) handleMirror(c *gin.Context, key string) {
 				return
 			}
 			proxy := httputil.NewSingleHostReverseProxy(u)
-			proxy.ErrorHandler = func(http.ResponseWriter, *http.Request, error) {}
+			proxy.Transport = r.transport
+			proxy.ErrorHandler = func(_ http.ResponseWriter, _ *http.Request, err error) {
+				log.Error(err, "proxy failed attempting next")
+			}
 			proxy.ModifyResponse = func(resp *http.Response) error {
 				if resp.StatusCode != http.StatusOK {
 					err := fmt.Errorf("expected mirror to respond with 200 OK but received: %s", resp.Status)
