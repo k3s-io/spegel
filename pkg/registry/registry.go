@@ -19,8 +19,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	pkggin "github.com/xenitab/pkg/gin"
 
-	"github.com/xenitab/spegel/internal/routing"
 	"github.com/xenitab/spegel/pkg/oci"
+	"github.com/xenitab/spegel/pkg/routing"
 )
 
 const (
