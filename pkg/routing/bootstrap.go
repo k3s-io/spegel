@@ -40,7 +40,7 @@ func (k *KubernetesBootstrapper) Run(ctx context.Context, id string) error {
 	lockCfg := resourcelock.ResourceLockConfig{
 		Identity: id,
 	}
-	rl, err := resourcelock.New(resourcelock.ConfigMapsLeasesResourceLock, k.leaderElectionNamespace, k.leaderElectioName, k.cs.CoreV1(), k.cs.CoordinationV1(), lockCfg)
+	rl, err := resourcelock.New(resourcelock.LeasesResourceLock, k.leaderElectionNamespace, k.leaderElectioName, k.cs.CoreV1(), k.cs.CoordinationV1(), lockCfg)
 	if err != nil {
 		return err
 	}
