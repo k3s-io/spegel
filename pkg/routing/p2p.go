@@ -29,34 +29,36 @@ type P2PRouter struct {
 	registryScheme string
 }
 
-func NewP2PRouter(ctx context.Context, addr string, b Bootstrapper, registryPort, registryScheme string) (Router, error) {
+func NewP2PRouter(ctx context.Context, addr string, b Bootstrapper, registryPort, registryScheme string, opts ...libp2p.Option) (Router, error) {
 	log := logr.FromContextOrDiscard(ctx).WithName("p2p")
 
 	multiAddrs, err := listenMultiaddrs(addr)
 	if err != nil {
 		return nil, err
 	}
-	addrFactoryOpt := libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
-		var ip4Ma, ip6Ma ma.Multiaddr
-		for _, addr := range addrs {
-			if manet.IsIPLoopback(addr) {
-				continue
+	opts = append(opts,
+		libp2p.ListenAddrs(multiAddrs...),
+		libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
+			var ip4Ma, ip6Ma ma.Multiaddr
+			for _, addr := range addrs {
+				if manet.IsIPLoopback(addr) {
+					continue
+				}
+				if isIp6(addr) {
+					ip6Ma = addr
+					continue
+				}
+				ip4Ma = addr
 			}
-			if isIp6(addr) {
-				ip6Ma = addr
-				continue
+			if ip6Ma != nil {
+				return []ma.Multiaddr{ip6Ma}
 			}
-			ip4Ma = addr
-		}
-		if ip6Ma != nil {
-			return []ma.Multiaddr{ip6Ma}
-		}
-		if ip4Ma != nil {
-			return []ma.Multiaddr{ip4Ma}
-		}
-		return nil
-	})
-	host, err := libp2p.New(libp2p.ListenAddrs(multiAddrs...), addrFactoryOpt)
+			if ip4Ma != nil {
+				return []ma.Multiaddr{ip4Ma}
+			}
+			return nil
+		}))
+	host, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create host: %w", err)
 	}
