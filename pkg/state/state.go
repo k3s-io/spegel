@@ -28,6 +28,18 @@ var advertisedKeys = promauto.NewGaugeVec(prometheus.GaugeOpts{
 // TODO: Update metrics on subscribed events. This will require keeping state in memory to know about key count changes.
 func Track(ctx context.Context, ociClient oci.Client, router routing.Router, resolveLatestTag bool) {
 	log := logr.FromContextOrDiscard(ctx)
+	for {
+		err := track(ctx, ociClient, router, resolveLatestTag)
+		if err == nil || errors.Is(err, context.Canceled) {
+			log.V(5).Info("image state tracker stopped")
+			return
+		}
+		log.Error(err, "restarting image state tracker due to error")
+	}
+}
+
+func track(ctx context.Context, ociClient oci.Client, router routing.Router, resolveLatestTag bool) error {
+	log := logr.FromContextOrDiscard(ctx)
 	eventCh, errCh := ociClient.Subscribe(ctx)
 	immediate := make(chan time.Time, 1)
 	immediate <- time.Now()
@@ -37,22 +49,25 @@ func Track(ctx context.Context, ociClient oci.Client, router routing.Router, res
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-ticker:
 			log.Info("running scheduled image state update")
-			err := all(ctx, ociClient, router, resolveLatestTag)
-			if err != nil {
-				log.Error(err, "received errors when updating all images")
-				continue
+			if err := all(ctx, ociClient, router, resolveLatestTag); err != nil {
+				return fmt.Errorf("received errors when updating all images: %w", err)
 			}
-		case img := <-eventCh:
+		case img, ok := <-eventCh:
+			if !ok {
+				return errors.New("image event channel closed")
+			}
 			log.Info("received image event", "image", img)
-			_, err := update(ctx, ociClient, router, img, false, resolveLatestTag)
-			if err != nil {
+			if _, err := update(ctx, ociClient, router, img, false, resolveLatestTag); err != nil {
 				log.Error(err, "received error when updating image")
 				continue
 			}
-		case err := <-errCh:
+		case err, ok := <-errCh:
+			if !ok {
+				return errors.New("image error channel closed")
+			}
 			log.Error(err, "event channel error")
 			continue
 		}
