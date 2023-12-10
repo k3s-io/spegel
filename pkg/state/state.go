@@ -44,12 +44,12 @@ func track(ctx context.Context, ociClient oci.Client, router routing.Router, res
 			if err := all(ctx, ociClient, router, resolveLatestTag); err != nil {
 				return fmt.Errorf("received errors when updating all images: %w", err)
 			}
-		case img, ok := <-eventCh:
+		case event, ok := <-eventCh:
 			if !ok {
 				return errors.New("image event channel closed")
 			}
-			log.Info("received image event", "image", img)
-			if _, err := update(ctx, ociClient, router, img, false, resolveLatestTag); err != nil {
+			log.Info("received image event", "image", event.Image, "type", event.Type)
+			if _, err := update(ctx, ociClient, router, event, false, resolveLatestTag); err != nil {
 				log.Error(err, "received error when updating image")
 				continue
 			}
@@ -64,6 +64,7 @@ func track(ctx context.Context, ociClient oci.Client, router routing.Router, res
 }
 
 func all(ctx context.Context, ociClient oci.Client, router routing.Router, resolveLatestTag bool) error {
+	log := logr.FromContextOrDiscard(ctx).V(5)
 	imgs, err := ociClient.ListImages(ctx)
 	if err != nil {
 		return err
@@ -74,7 +75,11 @@ func all(ctx context.Context, ociClient oci.Client, router routing.Router, resol
 	targets := map[string]interface{}{}
 	for _, img := range imgs {
 		_, skipDigests := targets[img.Digest.String()]
-		keyTotal, err := update(ctx, ociClient, router, img, skipDigests, resolveLatestTag)
+		// Handle the list re-sync as update events; this will also prevent the
+		// update function from setting metrics values.
+		event := oci.ImageEvent{Image: img, Type: oci.UpdateEvent}
+		log.Info("sync image event", "image", event.Image, "type", event.Type)
+		keyTotal, err := update(ctx, ociClient, router, event, skipDigests, resolveLatestTag)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -86,23 +91,36 @@ func all(ctx context.Context, ociClient oci.Client, router routing.Router, resol
 	return errors.Join(errs...)
 }
 
-func update(ctx context.Context, ociClient oci.Client, router routing.Router, img oci.Image, skipDigests, resolveLatestTag bool) (int, error) {
+func update(ctx context.Context, ociClient oci.Client, router routing.Router, event oci.ImageEvent, skipDigests, resolveLatestTag bool) (int, error) {
 	keys := []string{}
-	if !(!resolveLatestTag && img.IsLatestTag()) {
-		if tagRef, ok := img.TagName(); ok {
+	if !(!resolveLatestTag && event.Image.IsLatestTag()) {
+		if tagRef, ok := event.Image.TagName(); ok {
 			keys = append(keys, tagRef)
 		}
 	}
+	if event.Type == oci.DeleteEvent {
+		// We don't know how many digest keys were associated with the deleted image;
+		// that can only be updated by the full image list sync in all().
+		metrics.AdvertisedImages.WithLabelValues(event.Image.Registry).Sub(1)
+		// DHT doesn't actually have any way to stop providing a key, you just have to wait for the record to expire
+		// from the datastore. Record TTL is a datastore-level value, so we can't even re-provide with a shorter TTL.
+		return 0, nil
+	}
 	if !skipDigests {
-		dgsts, err := ociClient.GetImageDigests(ctx, img)
+		dgsts, err := ociClient.GetImageDigests(ctx, event.Image)
 		if err != nil {
-			return 0, fmt.Errorf("could not get digests for image %s: %w", img.String(), err)
+			return 0, fmt.Errorf("could not get digests for image %s: %w", event.Image.String(), err)
 		}
 		keys = append(keys, dgsts...)
 	}
 	err := router.Advertise(ctx, keys)
 	if err != nil {
-		return 0, fmt.Errorf("could not advertise image %s: %w", img.String(), err)
+		return 0, fmt.Errorf("could not advertise image %s: %w", event.Image.String(), err)
+	}
+	if event.Type == oci.CreateEvent {
+		// We don't know how many unique digest keys will be associated with the new image;
+		// that can only be updated by the full image list sync in all().
+		metrics.AdvertisedImages.WithLabelValues(event.Image.Registry).Add(1)
 	}
 	return len(keys), nil
 }
