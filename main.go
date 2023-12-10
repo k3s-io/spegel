@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/klog/v2"
 
+	"github.com/xenitab/spegel/pkg/metrics"
 	"github.com/xenitab/spegel/pkg/oci"
 	"github.com/xenitab/spegel/pkg/registry"
 	"github.com/xenitab/spegel/pkg/routing"
@@ -116,8 +117,9 @@ func registryCommand(ctx context.Context, args *RegistryCmd) (err error) {
 		return err
 	}
 
+	metrics.Register()
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(metrics.DefaultGatherer, promhttp.HandlerOpts{}))
 	metricsSrv := &http.Server{
 		Addr:    args.MetricsAddr,
 		Handler: mux,
