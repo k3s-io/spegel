@@ -69,8 +69,10 @@ func all(ctx context.Context, ociClient oci.Client, router routing.Router, resol
 	if err != nil {
 		return err
 	}
-	metrics.AdvertisedImages.Reset()
 	metrics.AdvertisedKeys.Reset()
+	metrics.AdvertisedImages.Reset()
+	metrics.AdvertisedImageTags.Reset()
+	metrics.AdvertisedImageDigests.Reset()
 	errs := []error{}
 	targets := map[string]interface{}{}
 	for _, img := range imgs {
@@ -85,8 +87,13 @@ func all(ctx context.Context, ociClient oci.Client, router routing.Router, resol
 			continue
 		}
 		targets[img.Digest.String()] = nil
-		metrics.AdvertisedImages.WithLabelValues(img.Registry).Add(1)
 		metrics.AdvertisedKeys.WithLabelValues(img.Registry).Add(float64(keyTotal))
+		metrics.AdvertisedImages.WithLabelValues(img.Registry).Add(1)
+		if img.Tag == "" {
+			metrics.AdvertisedImageDigests.WithLabelValues(event.Image.Registry).Add(1)
+		} else {
+			metrics.AdvertisedImageTags.WithLabelValues(event.Image.Registry).Add(1)
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -121,6 +128,11 @@ func update(ctx context.Context, ociClient oci.Client, router routing.Router, ev
 		// We don't know how many unique digest keys will be associated with the new image;
 		// that can only be updated by the full image list sync in all().
 		metrics.AdvertisedImages.WithLabelValues(event.Image.Registry).Add(1)
+		if event.Image.Tag == "" {
+			metrics.AdvertisedImageDigests.WithLabelValues(event.Image.Registry).Add(1)
+		} else {
+			metrics.AdvertisedImageTags.WithLabelValues(event.Image.Registry).Add(1)
+		}
 	}
 	return len(keys), nil
 }
