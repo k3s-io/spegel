@@ -406,10 +406,10 @@ func getEventImage(e typeurl.Any) (string, EventType, error) {
 func createFilters(registries []url.URL) (string, string) {
 	registryHosts := []string{}
 	for _, registry := range registries {
-		registryHosts = append(registryHosts, registry.Host)
+		registryHosts = append(registryHosts, strings.ReplaceAll(registry.Host, `.`, `\\.`))
 	}
-	listFilter := fmt.Sprintf(`name~="%s"`, strings.Join(registryHosts, "|"))
-	eventFilter := fmt.Sprintf(`topic~="/images/create|/images/update|images/delete",event.name~="%s"`, strings.Join(registryHosts, "|"))
+	listFilter := fmt.Sprintf(`name~="^(%s)/"`, strings.Join(registryHosts, "|"))
+	eventFilter := fmt.Sprintf(`topic~="/images/create|/images/update|images/delete",event.%s`, listFilter)
 	return listFilter, eventFilter
 }
 
