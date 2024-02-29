@@ -24,6 +24,7 @@ func Track(ctx context.Context, ociClient oci.Client, router routing.Router, res
 			return
 		}
 		log.Error(err, "restarting image state tracker due to error")
+		time.Sleep(time.Second)
 	}
 }
 
