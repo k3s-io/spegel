@@ -341,6 +341,10 @@ func getEventImage(e typeurl.Any) (string, EventType, error) {
 func createFilters(mirroredRegistries []url.URL) (string, string) {
 	registryHosts := []string{}
 	for _, registry := range mirroredRegistries {
+		if registry.Host == "*" || registry.Host == "_default" {
+			registryHosts = []string{".+"}
+			break
+		}
 		registryHosts = append(registryHosts, strings.ReplaceAll(registry.Host, `.`, `\\.`))
 	}
 	listFilter := fmt.Sprintf(`name~="^(%s)/"`, strings.Join(registryHosts, "|"))
