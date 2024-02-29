@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/containerd/containerd"
@@ -33,9 +34,9 @@ func TestOCIClient(t *testing.T) {
 		if item.IsDir() {
 			continue
 		}
-		dgst, err := digest.Parse(item.Name())
+		dgst, err := digest.Parse(strings.ReplaceAll(item.Name(), "_", ":"))
 		require.NoError(t, err)
-		b, err := os.ReadFile(path.Join("./testdata/blobs", item.Name()))
+		b, err := os.ReadFile(path.Join("./testdata/blobs", strings.ReplaceAll(item.Name(), ":", "_")))
 		require.NoError(t, err)
 		blobs[dgst] = b
 	}
