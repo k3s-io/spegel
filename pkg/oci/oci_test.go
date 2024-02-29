@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/containerd/containerd"
@@ -35,7 +36,7 @@ func TestOCIClient(t *testing.T) {
 		}
 		dgst, err := digest.Parse(item.Name())
 		require.NoError(t, err)
-		b, err := os.ReadFile(path.Join("./testdata/blobs", item.Name()))
+		b, err := os.ReadFile(path.Join("./testdata/blobs", strings.ReplaceAll(item.Name(), ":", "_")))
 		require.NoError(t, err)
 		blobs[dgst] = b
 	}
