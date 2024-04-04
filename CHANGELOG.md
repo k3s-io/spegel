@@ -249,8 +249,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- [#371](https://github.com/spegel-org/spegel/pull/371) Remove state track retry on error.
-
 ### Fixed
 
 - [#396](https://github.com/spegel-org/spegel/pull/396) Fix missing metrics when registering.
