@@ -12,16 +12,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/containerd/containerd"
 	eventtypes "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/content"
-	"github.com/containerd/containerd/images"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/typeurl/v2"
 	"github.com/go-logr/logr"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/afero"
+	"google.golang.org/grpc"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/spegel-org/spegel/internal/channel"
@@ -90,7 +91,11 @@ func (c *Containerd) Verify(ctx context.Context) error {
 	if !ok {
 		return errors.New("could not reach Containerd service")
 	}
-	resp, err := runtimeapi.NewRuntimeServiceClient(client.Conn()).Status(ctx, &runtimeapi.StatusRequest{Verbose: true})
+	conn, ok := client.Conn().(*grpc.ClientConn)
+	if !ok {
+		return errors.New("could not get GRPC client")
+	}
+	resp, err := runtimeapi.NewRuntimeServiceClient(conn).Status(ctx, &runtimeapi.StatusRequest{Verbose: true})
 	if err != nil {
 		return err
 	}
