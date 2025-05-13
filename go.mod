@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.23.6
 
 require (
+	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/alexflint/go-arg v1.5.1
 	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/containerd/v2 v2.0.5
@@ -28,7 +29,6 @@ require (
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/sync v0.13.0
 	google.golang.org/grpc v1.72.0
-	k8s.io/apimachinery v0.32.2
 	k8s.io/cri-api v0.32.0
 	k8s.io/klog/v2 v2.130.1
 )
@@ -38,7 +38,6 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20231105174938-2b5cbb29f3e2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.12.9 // indirect
