@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/images"
 	"github.com/go-logr/logr"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/prometheus/common/expfmt"
