@@ -501,9 +501,11 @@ func featuresForVersion(version string) (Feature, error) {
 	if v.LessThan(utilversion.MustParse("2.0")) {
 		features.Set(FeatureConfigCheck)
 	}
+	/* disabled, ref: https://github.com/spegel-org/spegel/issues/1021
 	if v.AtLeast(utilversion.MustParse("2.1")) {
 		features.Set(FeatureContentEvent)
 	}
+	*/
 	return features, nil
 }
 
