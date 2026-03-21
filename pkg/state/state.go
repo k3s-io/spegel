@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -74,6 +75,39 @@ func Track(ctx context.Context, ociStore oci.Store, router routing.Router, opts 
 	if err != nil {
 		return err
 	}
+
+	// Re-scan after a delay to catch tarball-imported content that was
+	// still being labeled during the initial scan. When images are imported
+	// from tarballs (e.g. k3s airgap), distribution source labels are added
+	// after import and may race with the initial ListContent scan above.
+	go func() {
+		select {
+		case <-time.After(30 * time.Second):
+		case <-ctx.Done():
+			return
+		}
+		log := logr.FromContextOrDiscard(ctx)
+		log.Info("running deferred content re-scan")
+		reContents, err := ociStore.ListContent(ctx)
+		if err != nil {
+			log.Error(err, "deferred content re-scan failed")
+			return
+		}
+		reKeys := []string{}
+		for _, refs := range reContents {
+			if allReferencesMatchFilter(refs, cfg.Filters) {
+				continue
+			}
+			reKeys = append(reKeys, refs[0].Digest.String())
+		}
+		if len(reKeys) > 0 {
+			if err := router.Advertise(ctx, reKeys); err != nil {
+				log.Error(err, "deferred content advertisement failed")
+			} else {
+				log.Info(fmt.Sprintf("deferred re-scan advertised %d content keys", len(reKeys)))
+			}
+		}
+	}()
 
 	// Watch for OCI events.
 	logr.FromContextOrDiscard(ctx).Info("waiting for store events")
