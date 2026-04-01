@@ -9,7 +9,8 @@ COPY internal/ internal/
 COPY pkg/ pkg/
 RUN CGO_ENABLED=0 go build -installsuffix 'static' -o spegel .
 
-FROM gcr.io/distroless/static:nonroot
+# March 15,2026 https://console.cloud.google.com/artifacts/docker/distroless/us/gcr.io/static
+FROM gcr.io/distroless/static:nonroot@sha256:e3f945647ffb95b5839c07038d64f9811adf17308b9121d8a2b87b6a22a80a39
 COPY --from=builder /build/spegel /app/
 WORKDIR /app
 USER root:root

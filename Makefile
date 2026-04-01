@@ -22,8 +22,8 @@ test-e2e: docker-build
 dev-deploy: docker-build
 	IMG_REF=${IMG_REF} go test ./test/e2e -v -timeout 200s -tags e2e -count 1 -run TestDevDeploy
 
-tools:
-	GO111MODULE=on go install github.com/norwoodj/helm-docs/cmd/helm-docs
+tools: # 1.14.2 https://github.com/norwoodj/helm-docs/tags
+	GO111MODULE=on go install github.com/norwoodj/helm-docs/cmd/helm-docs@37d3055fece566105cf8cff7c17b7b2355a01677
 
 helm-docs: tools
 	cd ./charts/spegel && helm-docs
